@@ -4,6 +4,7 @@
 
 import { resolve } from "node:path";
 import { generate } from "./generate.ts";
+import { init } from "./init.ts";
 import { launch } from "./launch.ts";
 
 const HELP = `vsredux - open a project in VS Code with only a curated set of extensions enabled.
@@ -12,19 +13,27 @@ Usage:
   vsredux [options]                generate the double-click launcher in the project root
   vsredux --launch [options]       open the project with minimal extensions
   vsredux --launch --dry-run       print the launch command without running it
+  vsredux --init [options]         write .vscode/extensions.json from installed extensions
+  vsredux --init --dry-run         print the generated file without writing it
 
 Options:
-  --root <dir>        project root to operate on (default: current directory)
-  --keep-file <path>  plain-text file of extra extension ids to keep enabled
-                      (default: .vscode/extensions.keep.txt). One id per line;
-                      '#' and '//' begin comments.
-  --name <name>       base name for the generated launcher file
-                      (default: "VS Code for Editors")
-  -h, --help          show this help
+  --root <dir>          project root to operate on (default: current directory)
+  --keep-file <path>    plain-text file of extra extension ids to keep enabled
+                        (default: .vscode/extensions.keep.txt). One id per line;
+                        '#' and '//' begin comments.
+  --name <name>         base name for the generated launcher file
+                        (default: "VS Code for Editors")
+  --extensions-dir <d>  with --init, the VS Code extensions directory to read
+                        (default: ~/.vscode/extensions)
+  --force               with --init, overwrite an existing .vscode/extensions.json
+  -h, --help            show this help
 
 Which extensions stay enabled = the project's .vscode/extensions.json
 "recommendations" PLUS any ids in the keep file. Every other installed extension
-is disabled for that window. Matching is case-insensitive; duplicates are ignored.`;
+is disabled for that window. Matching is case-insensitive; duplicates are ignored.
+
+Have no extensions.json yet? Run "vsredux --init" once to seed it from what you
+have installed (each id annotated with its name + description), then prune the list.`;
 
 // Read the value following a flag, e.g. --root <value>. Exits on a missing value.
 function flagValue(argv: string[], name: string): string | undefined {
@@ -48,10 +57,14 @@ if (argv.includes("--help") || argv.includes("-h")) {
 const root = resolve(flagValue(argv, "--root") ?? process.cwd());
 const keepFile = flagValue(argv, "--keep-file");
 const launcherName = flagValue(argv, "--name");
+const extensionsDir = flagValue(argv, "--extensions-dir");
+const dryRun = argv.includes("--dry-run");
 
 try {
   if (argv.includes("--launch")) {
-    launch({ root, keepFile, dryRun: argv.includes("--dry-run") });
+    launch({ root, keepFile, dryRun });
+  } else if (argv.includes("--init")) {
+    await init({ root, extensionsDir, force: argv.includes("--force"), dryRun });
   } else {
     generate({ root, launcherName });
   }

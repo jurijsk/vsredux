@@ -1,5 +1,5 @@
 {
-  "name": "vsredux",
+  "name": "@jurijsk/vsredux",
   "version": "0.1.0",
   "description": "Open any project in VS Code with only a curated set of extensions enabled, and generate a double-click launcher that does the same.",
   "keywords": [
@@ -10,10 +10,18 @@
     "vscode",
     "workspace"
   ],
+  "homepage": "https://github.com/jurijsk/vsredux#readme",
+  "bugs": {
+    "url": "https://github.com/jurijsk/vsredux/issues"
+  },
   "license": "MIT",
   "author": "Jurijs Kovzels <jurijs.kovzels@outlook.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jurijsk/vsredux.git"
+  },
   "bin": {
-    "vsredux": "./dist/cli.mjs"
+    "vsredux": "dist/cli.mjs"
   },
   "files": [
     "dist"
@@ -27,6 +35,7 @@
     "dev": "vp pack --watch",
     "test": "vp test",
     "check": "vp check",
+    "release": "bumpp",
     "prepublishOnly": "vp run build"
   },
   "devDependencies": {

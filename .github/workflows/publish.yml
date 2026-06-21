@@ -1,0 +1,42 @@
+name: Publish
+
+# Publish to npm via Trusted Publishing (OIDC) when a version tag (v*) is pushed.
+# Bump + tag with `npm run release` (bumpp), which pushes the tag and triggers this.
+#
+# One-time setup on npmjs.com (after the package's first manual publish):
+#   Package settings -> Trusted Publisher -> GitHub Actions, with
+#     Organization or user: jurijsk
+#     Repository:           vsredux
+#     Workflow filename:    publish.yml   (this file's name; case-sensitive)
+#     Allowed actions:      npm publish
+# No NPM_TOKEN secret or .npmrc is needed — auth is the OIDC id-token, and npm
+# attaches provenance automatically.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write # required for npm trusted publishing (OIDC)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          cache: true
+
+      - run: vp install
+      - run: vp check
+      - run: vp test
+
+      # Trusted publishing requires npm >= 11.5.1 (Node >= 22.14, which the Vite+
+      # toolchain provides). Upgrade npm to be safe regardless of the bundled version.
+      - run: npm install -g npm@latest
+
+      # prepublishOnly rebuilds dist/. No token: npm uses the OIDC id-token.
+      - run: npm publish --access public

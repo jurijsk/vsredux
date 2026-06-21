@@ -1,91 +1,84 @@
 # vsredux
 
-Open any project in **VS Code with only a curated set of extensions enabled** — every
-other installed extension is disabled _for that window only_, leaving your global
-setup untouched. Also generates a double-click launcher so a teammate can get the
-same focused window without touching the terminal.
+**Turn a project's _recommended_ extensions into the _only_ extensions it loads.**
 
-Useful when a heavy editor profile (linters, AI assistants, language servers for
-languages this repo doesn't use) gets in the way of a specific project.
+VS Code's `.vscode/extensions.json` recommendations are just suggestions — every
+extension you've installed globally still loads in every window. `vsredux` promotes
+that list into an allow-list: it opens the project with **only the recommended
+extensions enabled and every other one disabled**, for that window only. Your global
+setup is left untouched.
 
-## Which extensions stay enabled
+Perfect for when a heavy editor profile — linters, AI assistants, language servers for
+languages this repo doesn't touch — gets in the way of one focused project.
 
-The keep set is computed per project from two sources, merged:
+## Quick start
 
-1. **`.vscode/extensions.json` → `recommendations`** — the project's own recommended
-   extensions (the primary list).
-2. **A plain-text keep file** — extras you want kept that aren't recommendations.
-   Searched at `.vscode/extensions.keep.txt` (then `.vscode/extensions.keep`) by
-   default, or pass `--keep-file <path>`. One extension id per line; `#` and `//`
-   begin comments. Optional.
-
-Matching is case-insensitive and duplicates are removed.
-
-## Install
+No install needed — run it from the project root with `npx`:
 
 ```bash
-npm install -D vsredux     # or: vp add -D vsredux
+# 1. No recommendations list yet? Build one from what you already have installed:
+npx @jurijsk/vsredux --init
+
+# 2. Open the project with only those extensions enabled:
+npx @jurijsk/vsredux --launch
+
+# 3. ...or drop a double-click launcher in the project root (no terminal needed):
+npx @jurijsk/vsredux
 ```
 
-## Usage
+**Step 1** writes `.vscode/extensions.json` listing every installed extension as a
+recommendation, each annotated with its name and description — read offline from the
+extension itself, no network and no AI. Then **prune it to what the project needs** and
+commit it; the curated set now travels with the repo. (It even offers to open the file
+so you can start pruning right away.)
 
-Run from the project root (or pass `--root <dir>`):
+**Step 3** drops a launcher that re-opens the same focused window with one double-click
+— a `.lnk` on Windows, a `.command` on macOS/Linux — so a teammate never has to touch
+the terminal. It works whether you ran via `npx` or a local dev-dependency.
 
-```bash
-# Open the project now, with only the curated extensions enabled:
-npx vsredux --launch
+## What stays enabled
 
-# Print what would run, without launching:
-npx vsredux --launch --dry-run
+The keep set is merged from two sources and matched case-insensitively:
 
-# Generate a double-click launcher in the project root:
-npx vsredux
-#   Windows → "VS Code for Editors.lnk"
-#   macOS / Linux → "VS Code for Editors.command"
-```
+1. **`.vscode/extensions.json` → `recommendations`** — the project's list (commit it).
+2. **An optional keep file** — extras that aren't recommendations, one id per line
+   (`#` / `//` start comments). Found at `.vscode/extensions.keep.txt`, or pass
+   `--keep-file <path>`.
 
-Add it as a script for convenience:
+### Tip: wire it into `package.json`
+
+Add it as a dev-dependency so the commands travel with the repo and the whole team
+gets the same focused window:
 
 ```jsonc
 // package.json
 "scripts": {
-  "code": "vsredux --launch"
+  "code": "vsredux --launch",   // open the focused window
+  "code:link": "vsredux"        // (re)generate the double-click launcher
 }
 ```
 
-### Options
+## Options
 
-| Option               | Description                                                                              |
-| -------------------- | ---------------------------------------------------------------------------------------- |
-| `--root <dir>`       | Project root to operate on (default: current directory).                                 |
-| `--keep-file <path>` | Plain-text file of extra extension ids to keep (default: `.vscode/extensions.keep.txt`). |
-| `--name <name>`      | Base name for the generated launcher (default: `VS Code for Editors`).                   |
-| `--launch`           | Open the project now instead of generating a launcher.                                   |
-| `--dry-run`          | With `--launch`, print the command instead of running it.                                |
-| `-h`, `--help`       | Show help.                                                                               |
-
-## The generated launcher
-
-`vsredux` (no `--launch`) writes a launcher into the project root that, when
-double-clicked, re-invokes this CLI in `--launch` mode against that project. It
-bakes in this machine's Node path and the absolute path to the installed CLI, so
-**re-run `vsredux` after moving or reinstalling the package** to refresh those paths.
-On Windows the launcher is created via PowerShell's `WScript.Shell`.
+| Option                 | Description                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `--launch`             | Open the project now with only the curated set (instead of a launcher).      |
+| `--init`               | Generate `.vscode/extensions.json` from your installed extensions.           |
+| `--root <dir>`         | Project to operate on (default: current directory).                          |
+| `--keep-file <path>`   | Extra ids to keep, one per line (default: `.vscode/extensions.keep.txt`).    |
+| `--name <name>`        | Launcher file name (default: `VS Code for Editors`).                         |
+| `--extensions-dir <d>` | With `--init`, the extensions dir to read (default: `~/.vscode/extensions`). |
+| `--force`              | With `--init`, overwrite an existing `.vscode/extensions.json`.              |
+| `--dry-run`            | Preview only: print the launch command, or the generated file.               |
+| `-h`, `--help`         | Show help.                                                                   |
 
 ## Requirements
 
 - Node.js >= 18.
-- The VS Code `code` CLI available (on Windows the user install under
-  `%LOCALAPPDATA%\Programs\Microsoft VS Code` is detected automatically; otherwise
-  run _Shell Command: Install 'code' command in PATH_ from VS Code).
+- The VS Code `code` CLI (auto-detected on Windows; otherwise run _Shell Command:
+  Install 'code' command in PATH_ from VS Code).
 
 ## Development
 
-This package is built with [Vite+](https://viteplus.dev). Use the `vp` CLI:
-
-```bash
-vp install   # install dependencies
-vp check     # format, lint, type-check
-vp test      # run unit tests
-vp pack      # build to dist/
-```
+Built with [Vite+](https://viteplus.dev): `vp check` (format, lint, types), `vp test`,
+`vp pack` (build to `dist/`).

@@ -1,17 +1,29 @@
 // Creating the double-click launcher in the project root.
 //
-// The launcher re-invokes THIS CLI in `--launch` mode against the project root,
-// baking in this machine's node path and the absolute path to the installed CLI
-// so a plain double-click opens the curated VS Code window. Re-run generation if
-// the package is moved or reinstalled, since those paths are baked in.
+// The launcher re-invokes THIS tool in `--launch` mode against the project root.
+// It does so via `npx <pkg>` rather than a baked file path, so the same launcher
+// works whether the tool was run through npx (one-off) or installed as a project
+// dev-dependency — npx prefers a locally installed copy when present (fast and
+// offline) and otherwise fetches it. Nothing machine-specific is baked in, so the
+// launcher keeps working across reinstalls and cache evictions.
 
 import { execFileSync } from "node:child_process";
-import { chmodSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
-// Absolute path to this CLI's entry module (the file the launcher will run).
-const SELF = fileURLToPath(import.meta.url);
+// This package's published name, read from our own package.json so the launcher's
+// npx target tracks the real name even after a rename. Falls back to the known name.
+function packageName(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+      name?: string;
+    };
+    if (typeof pkg.name === "string" && pkg.name) return pkg.name;
+  } catch {
+    // fall back below
+  }
+  return "@jurijsk/vsredux";
+}
 
 export interface GenerateOptions {
   // Project root where the launcher file is written and which it opens.
@@ -26,7 +38,7 @@ function psQuote(s: string): string {
 }
 
 export function generate({ root, launcherName = "VS Code for Editors" }: GenerateOptions): void {
-  const node = process.execPath;
+  const pkg = packageName();
   if (process.platform === "win32") {
     const lnk = join(root, `${launcherName}.lnk`);
     const codeExe = join(
@@ -35,14 +47,18 @@ export function generate({ root, launcherName = "VS Code for Editors" }: Generat
       "Microsoft VS Code",
       "Code.exe",
     );
+    const comspec = process.env.ComSpec ?? "cmd.exe";
+    // `cmd /c npx ...`; WorkingDirectory (below) is the project root, so a local
+    // dev-dependency install is resolved when present, else npx fetches the package.
+    const args = `/c npx -y ${pkg} --launch --root "${root}"`;
     const ps = [
       `$ws = New-Object -ComObject WScript.Shell`,
       `$s = $ws.CreateShortcut('${psQuote(lnk)}')`,
-      `$s.TargetPath = '${psQuote(node)}'`,
-      `$s.Arguments = '"${psQuote(SELF)}" --launch --root "${psQuote(root)}"'`,
+      `$s.TargetPath = '${psQuote(comspec)}'`,
+      `$s.Arguments = '${psQuote(args)}'`,
       `$s.IconLocation = '${psQuote(codeExe)},0'`,
       `$s.WorkingDirectory = '${psQuote(root)}'`,
-      `$s.WindowStyle = 7`, // minimized: avoid a foreground console flash
+      `$s.WindowStyle = 7`, // minimized: keep the brief npx console out of the way
       `$s.Description = '${psQuote(launcherName)} - open this project in VS Code with minimal extensions'`,
       `$s.Save()`,
     ].join("; ");
@@ -54,7 +70,7 @@ export function generate({ root, launcherName = "VS Code for Editors" }: Generat
     const cmd = join(root, `${launcherName}.command`);
     writeFileSync(
       cmd,
-      `#!/usr/bin/env bash\ncd "${root}" && exec "${node}" "${SELF}" --launch --root "${root}"\n`,
+      `#!/usr/bin/env bash\ncd "${root}" && exec npx -y ${pkg} --launch --root "${root}"\n`,
     );
     chmodSync(cmd, 0o755);
     console.log(`Created ${cmd}`);
