@@ -14,7 +14,8 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { emitKeypressEvents } from "node:readline";
+import { generate, resolveLauncherName } from "./generate.ts";
+import { askEnterOrEsc } from "./prompt.ts";
 import { type CodeCli, listInstalled, resolveCode } from "./vscode.ts";
 
 export interface InitOptions {
@@ -22,10 +23,12 @@ export interface InitOptions {
   root: string;
   // Directory VS Code installs user extensions into; defaults to ~/.vscode/extensions.
   extensionsDir?: string;
-  // Overwrite an existing `.vscode/extensions.json` instead of refusing.
+  // Overwrite an existing `.vscode/extensions.json` instead of using it.
   force?: boolean;
   // Print the generated file to stdout instead of writing it.
   dryRun?: boolean;
+  // Base name for the launcher, when one is created from an existing file.
+  launcherName?: string;
 }
 
 // Human-readable metadata for one extension, as shown in the generated comments.
@@ -161,44 +164,44 @@ export function renderExtensionsJson(ids: string[], meta: Map<string, ExtMeta>):
   return lines.join("\n");
 }
 
-// After writing the file, offer to open it in VS Code so the user can prune it.
-// Interactive terminals only: when stdin isn't a TTY (scripts, pipes, CI) there's
-// no one at the keyboard, so we skip rather than block. Enter opens it; Esc (or
-// Ctrl-C) quits without opening — a single keypress, no need to confirm with Enter.
-async function offerToOpen(code: CodeCli, file: string): Promise<void> {
-  const stdin = process.stdin;
-  if (!stdin.isTTY) return;
-
-  process.stdout.write("Press Enter to open it in VS Code, or Esc to quit… ");
-  emitKeypressEvents(stdin);
-  stdin.setRawMode(true);
-  stdin.resume();
-
-  const open = await new Promise<boolean>((resolve) => {
-    function done(result: boolean): void {
-      stdin.off("keypress", onKey);
-      stdin.setRawMode(false);
-      stdin.pause();
-      process.stdout.write("\n");
-      resolve(result);
-    }
-    function onKey(_s: string | undefined, key: { name?: string; ctrl?: boolean }): void {
-      if (key?.name === "return" || key?.name === "enter") done(true);
-      else if (key?.name === "escape" || (key?.ctrl && key.name === "c")) done(false);
-    }
-    stdin.on("keypress", onKey);
-  });
-
-  if (!open) return;
+// Open a file in VS Code, detached. Reports (rather than throws) if launch fails.
+function openInVsCode(code: CodeCli, file: string): void {
   const child = spawn(code.launchBin, [file], { detached: true, stdio: "ignore" });
   child.on("error", () => console.error(`Could not launch VS Code; open it yourself: ${file}`));
   child.unref();
 }
 
-// Generate `.vscode/extensions.json` for `root` from the installed extension set.
-export async function init({ root, extensionsDir, force, dryRun }: InitOptions): Promise<void> {
+// `vsredux --init`: make sure the project has a `.vscode/extensions.json`.
+//
+// If it doesn't exist (or `--force`), generate one from the installed extensions
+// and offer to open it for pruning. If it already exists, don't clobber it — use
+// it: offer to open it for editing, or (Esc) create the double-click launcher from
+// the list as it stands. Every prompt is skipped when not attached to a terminal.
+export async function init({
+  root,
+  extensionsDir,
+  force,
+  dryRun,
+  launcherName,
+}: InitOptions): Promise<void> {
   const code = resolveCode();
   const dir = extensionsDir ?? defaultExtensionsDir();
+  const target = join(root, ".vscode", "extensions.json");
+
+  // Already set up: keep the existing list. (Skipped for --dry-run, which only
+  // previews what a fresh generation would produce.)
+  if (!dryRun && existsSync(target) && !force) {
+    console.log(`${target} already exists — using it as-is.`);
+    const edit = await askEnterOrEsc(
+      "Edit it? Press Enter to open it in VS Code, or Esc to create a launcher instead… ",
+    );
+    if (edit === true) openInVsCode(code, target);
+    else if (edit === false)
+      generate({ root, launcherName: await resolveLauncherName(launcherName) });
+    return;
+  }
+
+  // No list yet (or --force): generate one from the installed extension set.
   const ids = listInstalled(code).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
   if (ids.length === 0) {
     console.error("No installed extensions reported by the 'code' CLI; nothing to write.");
@@ -215,17 +218,13 @@ export async function init({ root, extensionsDir, force, dryRun }: InitOptions):
     return;
   }
 
-  const target = join(root, ".vscode", "extensions.json");
-  if (existsSync(target) && !force) {
-    throw new Error(
-      `${target} already exists. Re-run with --force to overwrite, or edit it by hand.`,
-    );
-  }
   mkdirSync(join(root, ".vscode"), { recursive: true });
   writeFileSync(target, text, "utf8");
   console.log(
     `Wrote ${target}: ${ids.length} recommendation${ids.length === 1 ? "" : "s"} ` +
       `(${annotated} annotated). Prune it to what this project actually needs.`,
   );
-  await offerToOpen(code, target);
+  if ((await askEnterOrEsc("Press Enter to open it in VS Code, or Esc to quit… ")) === true) {
+    openInVsCode(code, target);
+  }
 }

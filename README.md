@@ -66,7 +66,7 @@ gets the same focused window:
 | `--init`               | Generate `.vscode/extensions.json` from your installed extensions.           |
 | `--root <dir>`         | Project to operate on (default: current directory).                          |
 | `--keep-file <path>`   | Extra ids to keep, one per line (default: `.vscode/extensions.keep.txt`).    |
-| `--name <name>`        | Launcher file name (default: `VS Code for Editors`).                         |
+| `--name <name>`        | Launcher file name (default: `vsredux`); skips the interactive name prompt.  |
 | `--extensions-dir <d>` | With `--init`, the extensions dir to read (default: `~/.vscode/extensions`). |
 | `--force`              | With `--init`, overwrite an existing `.vscode/extensions.json`.              |
 | `--dry-run`            | Preview only: print the launch command, or the generated file.               |

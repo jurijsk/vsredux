@@ -1,16 +1,9 @@
 name: Publish
 
-# Publish to npm via Trusted Publishing (OIDC) when a version tag (v*) is pushed.
-# Bump + tag with `npm run release` (bumpp), which pushes the tag and triggers this.
-#
-# One-time setup on npmjs.com (after the package's first manual publish):
-#   Package settings -> Trusted Publisher -> GitHub Actions, with
-#     Organization or user: jurijsk
-#     Repository:           vsredux
-#     Workflow filename:    publish.yml   (this file's name; case-sensitive)
-#     Allowed actions:      npm publish
-# No NPM_TOKEN secret or .npmrc is needed — auth is the OIDC id-token, and npm
-# attaches provenance automatically.
+# Publish to npm when a version tag (v*) is pushed (created by `npm run release`).
+# Wired for Trusted Publishing via OIDC; the `id-token: write` permission below is
+# what authenticates. See RELEASING.md for the release flow, the npm-auth options
+# (OIDC vs. token), and the manual fallback.
 on:
   push:
     tags:

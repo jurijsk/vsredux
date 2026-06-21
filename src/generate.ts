@@ -10,6 +10,18 @@
 import { execFileSync } from "node:child_process";
 import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { askText } from "./prompt.ts";
+
+// Default base name for the launcher file. Generic on purpose — the tool's own name
+// rather than anyone's particular workflow; override per project with `--name` or
+// the interactive prompt.
+export const DEFAULT_LAUNCHER_NAME = "vsredux";
+
+// The launcher's base name: an explicit `--name` wins; otherwise ask for one
+// (defaulting to DEFAULT_LAUNCHER_NAME), which is a no-op fallback when not a TTY.
+export function resolveLauncherName(explicit?: string): Promise<string> {
+  return explicit ? Promise.resolve(explicit) : askText("Launcher name", DEFAULT_LAUNCHER_NAME);
+}
 
 // This package's published name, read from our own package.json so the launcher's
 // npx target tracks the real name even after a rename. Falls back to the known name.
@@ -37,7 +49,7 @@ function psQuote(s: string): string {
   return s.replace(/'/g, "''");
 }
 
-export function generate({ root, launcherName = "VS Code for Editors" }: GenerateOptions): void {
+export function generate({ root, launcherName = DEFAULT_LAUNCHER_NAME }: GenerateOptions): void {
   const pkg = packageName();
   if (process.platform === "win32") {
     const lnk = join(root, `${launcherName}.lnk`);
