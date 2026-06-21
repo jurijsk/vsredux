@@ -1,6 +1,6 @@
 {
   "name": "@jurijsk/vsredux",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Open any project in VS Code with only a curated set of extensions enabled, and generate a double-click launcher that does the same.",
   "keywords": [
     "cli",
