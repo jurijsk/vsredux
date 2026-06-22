@@ -17,7 +17,15 @@ export function resolveCode(): CodeCli {
     const base = join(process.env.LOCALAPPDATA ?? "", "Programs", "Microsoft VS Code");
     const exe = join(base, "Code.exe");
     const cmd = join(base, "bin", "code.cmd");
-    if (existsSync(exe)) return { listBin: existsSync(cmd) ? cmd : "code", launchBin: exe };
+    // Both listing and launching go through the CLI wrapper (bin\code.cmd), never the
+    // GUI binary Code.exe. Code.exe rejects CLI flags such as --new-window and
+    // --disable-extension ("bad option: --new-window"), so launching through it
+    // silently fails to open a window; code.cmd is the supported CLI that opens
+    // windows and toggles extensions. Fall back to a bare "code" on PATH.
+    if (existsSync(exe)) {
+      const cli = existsSync(cmd) ? cmd : "code";
+      return { listBin: cli, launchBin: cli };
+    }
     return { listBin: "code", launchBin: "code" };
   }
   // macOS / Linux

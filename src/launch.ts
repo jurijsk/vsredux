@@ -37,5 +37,17 @@ export function launch({ root, keepFile, dryRun }: LaunchOptions): void {
     console.log(`${code.launchBin} ${args.join(" ")}`);
     return;
   }
-  spawn(code.launchBin, args, { detached: true, stdio: "ignore" }).unref();
+  // detached + unref so the editor outlives this short-lived launcher process. On
+  // Windows launchBin is a .cmd wrapper, which Node >= 18.20 refuses to spawn without
+  // a shell; run it through the shell there as a single pre-quoted command string
+  // (quoting the binary path and any argument with spaces, e.g. the project root).
+  // Passing an args array alongside shell:true is deprecated (DEP0190) precisely
+  // because the shell does no quoting of its own, so we build the line ourselves.
+  if (process.platform === "win32") {
+    const q = (s: string) => (/\s/.test(s) ? `"${s}"` : s);
+    const cmdLine = [code.launchBin, ...args].map(q).join(" ");
+    spawn(cmdLine, { detached: true, stdio: "ignore", shell: true }).unref();
+  } else {
+    spawn(code.launchBin, args, { detached: true, stdio: "ignore" }).unref();
+  }
 }
